@@ -166,7 +166,7 @@
       color: #ff8800; 
     }
 
-    /* Compass needle - now fixed pointing up */
+    /* Compass needle - fixed pointing up */
     .needle {
       position: absolute;
       left: 50%;
@@ -245,6 +245,24 @@
       text-shadow: 0 0 12px #00ffff;
       letter-spacing: 6px;
       font-weight: bold;
+    }
+
+    /* GPS panel */
+    .gps-panel {
+      margin-top: 14px;
+      padding: 10px 14px;
+      font-size: 11px;
+      color: #a8ffff;
+      text-shadow: 0 0 6px #00ffff;
+      line-height: 1.5;
+      background: rgba(0,20,40,0.6);
+      border-radius: 8px;
+      border: 1px solid rgba(0,255,255,0.3);
+      font-family: monospace;
+      white-space: pre-wrap;
+      max-width: 90%;
+      margin-left: auto;
+      margin-right: auto;
     }
 
     /* Debug info */
@@ -347,7 +365,7 @@
     <div class="overlay-card">
       <div class="overlay-title">⬡ SYNTHWAVE COMPASS ⬡</div>
       <p class="overlay-text">
-        Tap below to activate motion sensors.<br />
+        Tap below to activate motion sensors and GPS.<br />
         Move your device to locate magnetic north.
       </p>
       <button class="overlay-btn" id="startBtn">ACTIVATE</button>
@@ -373,6 +391,8 @@
 
     <div class="heading" id="heading">---°</div>
     <div class="direction-label" id="dirLabel">–</div>
+
+    <div class="gps-panel" id="gpsPanel">GPS: waiting…</div>
   </div>
 
   <div class="debug" id="debug">α: -
@@ -380,19 +400,22 @@
 γ: -
 events: 0</div>
 
-<script>
+  <script>
     const statusEl = document.getElementById("status");
     const needleEl = document.getElementById("needle");
     const headingEl = document.getElementById("heading");
     const dirLabelEl = document.getElementById("dirLabel");
     const debugEl = document.getElementById("debug");
+    const gpsPanel = document.getElementById("gpsPanel");
     const overlay = document.getElementById("overlay");
     const startBtn = document.getElementById("startBtn");
     const compassInner = document.getElementById("compassInner");
 
     let eventCount = 0;
     let lastHeading = null;
-    let currentRotation = 0; // Track the actual CSS rotation (can go beyond 360)
+    let currentRotation = 0; // Track cumulative CSS rotation (can exceed 360)
+    let smoothedHeading = null;
+    const SMOOTHING_FACTOR = 0.15; // Lower = smoother but slower response
 
     function getCardinal(heading) {
       const dirs = ["N","NE","E","SE","S","SW","W","NW"];
@@ -411,29 +434,39 @@ events: 0</div>
         `α: ${a}\nβ: ${b}\nγ: ${g}\nevents: ${eventCount}`;
 
       if (e.alpha != null) {
-        // Add 180 to flip North and South
-        let heading = (e.alpha + 180) % 360;
-        lastHeading = heading;
+        // Add 180° to correct for device reporting north as south
+        let rawHeading = (e.alpha + 180) % 360;
 
-        // Update text
-        headingEl.textContent = `${Math.round(heading)}°`;
-        dirLabelEl.textContent = getCardinal(heading);
+        // Initialize smoothed heading on first reading
+        if (smoothedHeading == null) {
+          smoothedHeading = rawHeading;
+        } else {
+          // Smooth the heading using shortest path
+          let diff = rawHeading - smoothedHeading;
+          // Normalize difference to -180 to 180 range
+          while (diff > 180) diff -= 360;
+          while (diff < -180) diff += 360;
+          smoothedHeading = (smoothedHeading + diff * SMOOTHING_FACTOR + 360) % 360;
+        }
 
-        // Calculate the target rotation (negative because we rotate counter-clockwise)
-        let targetRotation = -heading;
+        lastHeading = smoothedHeading;
 
-        // Find the shortest path from current rotation to target
-        // by checking if wrapping around is shorter
-        let diff = targetRotation - currentRotation;
-        
-        // Normalize the difference to be between -180 and 180
-        while (diff > 180) diff -= 360;
-        while (diff < -180) diff += 360;
-        
-        // Update current rotation by the shortest difference
-        currentRotation += diff;
+        // Update text display
+        headingEl.textContent = `${Math.round(smoothedHeading)}°`;
+        dirLabelEl.textContent = getCardinal(smoothedHeading);
 
-        // Apply the rotation (can now be beyond 360 or below 0)
+        // Calculate target rotation (negative for counter-clockwise)
+        let targetRotation = -smoothedHeading;
+
+        // Find shortest path from current to target rotation
+        let diffRot = targetRotation - currentRotation;
+        while (diffRot > 180) diffRot -= 360;
+        while (diffRot < -180) diffRot += 360;
+
+        // Update cumulative rotation
+        currentRotation += diffRot;
+
+        // Apply rotation (can be beyond 360 or below 0)
         compassInner.style.transform = `rotate(${currentRotation}deg)`;
 
         if (statusEl.textContent !== "SENSORS ACTIVE") {
@@ -443,10 +476,50 @@ events: 0</div>
       }
     }
 
+    function startGPS() {
+      if (!navigator.geolocation) {
+        gpsPanel.textContent = "GPS: not supported";
+        return;
+      }
+
+      gpsPanel.textContent = "GPS: requesting…";
+
+      navigator.geolocation.watchPosition(
+        (pos) => {
+          const { latitude, longitude, accuracy, speed, heading } = pos.coords;
+
+          // heading is direction of travel (only valid when moving)
+          let headingText = "—";
+          if (typeof heading === "number" && !Number.isNaN(heading)) {
+            headingText = `${Math.round(heading)}°`;
+          }
+
+          let speedKmh = "—";
+          if (typeof speed === "number" && !Number.isNaN(speed)) {
+            speedKmh = (speed * 3.6).toFixed(1); // m/s → km/h
+          }
+
+          gpsPanel.textContent =
+            `GPS: ${latitude.toFixed(5)}, ${longitude.toFixed(5)}\n` +
+            `±${Math.round(accuracy)}m | speed: ${speedKmh} km/h\n` +
+            `travel heading: ${headingText}`;
+        },
+        (err) => {
+          gpsPanel.textContent = `GPS error: ${err.message}`;
+        },
+        {
+          enableHighAccuracy: true,
+          maximumAge: 5000,
+          timeout: 20000,
+        }
+      );
+    }
+
     function startSensors() {
       statusEl.textContent = "LISTENING...";
       
       window.addEventListener("deviceorientation", handleOrientation, false);
+      startGPS();
       
       // Fallback check after 3 seconds
       setTimeout(() => {
