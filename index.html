@@ -380,7 +380,7 @@
 γ: -
 events: 0</div>
 
-  <script>
+<script>
     const statusEl = document.getElementById("status");
     const needleEl = document.getElementById("needle");
     const headingEl = document.getElementById("heading");
@@ -392,6 +392,7 @@ events: 0</div>
 
     let eventCount = 0;
     let lastHeading = null;
+    let currentRotation = 0; // Track the actual CSS rotation (can go beyond 360)
 
     function getCardinal(heading) {
       const dirs = ["N","NE","E","SE","S","SW","W","NW"];
@@ -410,8 +411,7 @@ events: 0</div>
         `α: ${a}\nβ: ${b}\nγ: ${g}\nevents: ${eventCount}`;
 
       if (e.alpha != null) {
-        // We add 180 to flip North and South because your device 
-        // is reporting 180 when facing North.
+        // Add 180 to flip North and South
         let heading = (e.alpha + 180) % 360;
         lastHeading = heading;
 
@@ -419,8 +419,22 @@ events: 0</div>
         headingEl.textContent = `${Math.round(heading)}°`;
         dirLabelEl.textContent = getCardinal(heading);
 
-        // Rotate the dial counter-clockwise by the heading amount
-        compassInner.style.transform = `rotate(${-heading}deg)`;
+        // Calculate the target rotation (negative because we rotate counter-clockwise)
+        let targetRotation = -heading;
+
+        // Find the shortest path from current rotation to target
+        // by checking if wrapping around is shorter
+        let diff = targetRotation - currentRotation;
+        
+        // Normalize the difference to be between -180 and 180
+        while (diff > 180) diff -= 360;
+        while (diff < -180) diff += 360;
+        
+        // Update current rotation by the shortest difference
+        currentRotation += diff;
+
+        // Apply the rotation (can now be beyond 360 or below 0)
+        compassInner.style.transform = `rotate(${currentRotation}deg)`;
 
         if (statusEl.textContent !== "SENSORS ACTIVE") {
           statusEl.textContent = "SENSORS ACTIVE";
