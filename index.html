@@ -101,6 +101,14 @@
       }
     }
 
+    /* Rotating inner compass dial */
+    .compass-inner {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      transition: transform 0.15s ease-out;
+    }
+
     /* Outer ring */
     .ring {
       position: absolute;
@@ -158,7 +166,7 @@
       color: #ff8800; 
     }
 
-    /* Compass needle */
+    /* Compass needle - now fixed pointing up */
     .needle {
       position: absolute;
       left: 50%;
@@ -166,9 +174,9 @@
       width: 10px;
       height: 120px;
       transform-origin: center bottom;
-      transform: translate(-50%, -100%) rotate(0deg);
-      transition: transform 0.15s ease-out;
+      transform: translate(-50%, -100%);
       filter: drop-shadow(0 0 12px #ff00ff);
+      z-index: 10;
     }
     
     .needle-north {
@@ -196,6 +204,7 @@
         0 0 15px #ff00ff,
         0 0 25px #ff0080;
       animation: dotPulse 1.5s ease-in-out infinite;
+      z-index: 5;
     }
     
     @keyframes dotPulse {
@@ -349,15 +358,17 @@
     <div id="status" class="status">INITIALIZING...</div>
 
     <div class="compass-wrap">
-      <div class="ring"></div>
-      <div class="dirs">
-        <span class="n">N</span>
-        <span class="e">E</span>
-        <span class="s">S</span>
-        <span class="w">W</span>
+      <div class="compass-inner" id="compassInner">
+        <div class="ring"></div>
+        <div class="dirs">
+          <span class="n">N</span>
+          <span class="e">E</span>
+          <span class="s">S</span>
+          <span class="w">W</span>
+        </div>
+        <div class="center-dot"></div>
       </div>
       <div class="needle needle-north" id="needle"></div>
-      <div class="center-dot"></div>
     </div>
 
     <div class="heading" id="heading">---°</div>
@@ -377,9 +388,10 @@ events: 0</div>
     const debugEl = document.getElementById("debug");
     const overlay = document.getElementById("overlay");
     const startBtn = document.getElementById("startBtn");
+    const compassInner = document.getElementById("compassInner");
 
     let eventCount = 0;
-    let lastAlpha = null;
+    let lastHeading = null;
 
     function getCardinal(heading) {
       const dirs = ["N","NE","E","SE","S","SW","W","NW"];
@@ -398,16 +410,18 @@ events: 0</div>
         `α: ${a}\nβ: ${b}\nγ: ${g}\nevents: ${eventCount}`;
 
       if (e.alpha != null) {
-        lastAlpha = e.alpha;
-        
-        // Convert alpha to compass heading (0° = North, clockwise)
+        // alpha: device rotation around Z axis
+        // Convert to compass heading (0° = North, clockwise)
         let heading = (360 - e.alpha) % 360;
-        
+        lastHeading = heading;
+
+        // Update text
         headingEl.textContent = `${Math.round(heading)}°`;
         dirLabelEl.textContent = getCardinal(heading);
 
-        needleEl.style.transform = 
-          `translate(-50%, -100%) rotate(${heading}deg)`;
+        // Rotate the entire compass dial so that N points toward real north
+        // Needle stays fixed pointing up; dial turns underneath it
+        compassInner.style.transform = `rotate(${heading}deg)`;
 
         if (statusEl.textContent !== "SENSORS ACTIVE") {
           statusEl.textContent = "SENSORS ACTIVE";
@@ -419,12 +433,11 @@ events: 0</div>
     function startSensors() {
       statusEl.textContent = "LISTENING...";
       
-      // Simple listener, just like Audero demo
       window.addEventListener("deviceorientation", handleOrientation, false);
       
       // Fallback check after 3 seconds
       setTimeout(() => {
-        if (eventCount === 0 || lastAlpha === null) {
+        if (eventCount === 0 || lastHeading === null) {
           statusEl.textContent = "NO SENSOR DATA";
           statusEl.style.borderColor = "#ff4444";
           statusEl.style.background = "rgba(255,0,0,0.2)";
