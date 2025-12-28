@@ -16,7 +16,10 @@ A retro 80s-inspired 3D compass web app that uses your phone's motion sensors to
 
 ## 🚀 Live Demo
 
-Visit the live app: `https://marusame00.github.io/synthwave-compass/`
+Visit the live app: 
+```text
+https://marusame00.github.io/synthwave-compass/
+```
 
 
 ## 📱 Usage
