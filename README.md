@@ -206,7 +206,7 @@ Found a bug or want to add a feature?
 ## 📞 Support
 
 Having issues? Check the **Troubleshooting** section above or open an issue on GitHub.
-
+Vibe Coded with abacus.ai
 ---
 
 **Made with 💜 and neon dreams**
