@@ -410,18 +410,20 @@ events: 0</div>
         `α: ${a}\nβ: ${b}\nγ: ${g}\nevents: ${eventCount}`;
 
       if (e.alpha != null) {
-        // alpha: device rotation around Z axis
-        // Convert to compass heading (0° = North, clockwise)
-        let heading = (360 - e.alpha) % 360;
+        // alpha is the compass heading directly:
+        // 0° = North, 90° = East, 180° = South, 270° = West
+        let heading = e.alpha;
         lastHeading = heading;
 
         // Update text
         headingEl.textContent = `${Math.round(heading)}°`;
         dirLabelEl.textContent = getCardinal(heading);
 
-        // Rotate the entire compass dial so that N points toward real north
-        // Needle stays fixed pointing up; dial turns underneath it
-        compassInner.style.transform = `rotate(${heading}deg)`;
+        // Rotate the dial counter-clockwise by the heading amount
+        // so that the "N" label points toward real north
+        // (We negate because CSS rotate is clockwise, but we want the dial
+        // to rotate so N moves to where north actually is)
+        compassInner.style.transform = `rotate(${-heading}deg)`;
 
         if (statusEl.textContent !== "SENSORS ACTIVE") {
           statusEl.textContent = "SENSORS ACTIVE";
