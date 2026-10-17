@@ -1,0 +1,51 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.synthwavecompass.app'
+    compileSdk 37
+
+    defaultConfig {
+        applicationId "com.synthwavecompass.app"
+        minSdk 26
+        targetSdk 37
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    sourceSets {
+        main {
+            assets.srcDirs += file('../../www')
+        }
+    }
+}
+
+// Publish a pretty-named copy of the APK. This is a COPY, never a move: AGP's
+// incremental packager tracks "app-debug.apk" as packageDebug's output, and if
+// that file goes missing between builds (e.g. a doLast rename), incremental
+// builds produce a corrupt zip containing only the changed entry. Copying
+// keeps the tracked output untouched and incremental builds healthy.
+tasks.register("renameDebugApk", Copy) {
+    dependsOn ":app:packageDebug"
+    from(layout.buildDirectory.dir("outputs/apk/debug/app-debug.apk"))
+    into(layout.projectDirectory.dir("dist"))
+    rename("app-debug.apk", "SynthwaveCompass-${android.defaultConfig.versionName}.apk")
+}
+
+// Produce both artifacts with a plain `assembleDebug` build.
+afterEvaluate {
+    tasks.named("assembleDebug").configure { it.finalizedBy(tasks.named("renameDebugApk")) }
+}
+

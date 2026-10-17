@@ -415,7 +415,11 @@ events: 0</div>
     let lastHeading = null;
     let currentRotation = 0; // Track cumulative CSS rotation (can exceed 360)
     let smoothedHeading = null;
-    const SMOOTHING_FACTOR = 0.15; // Lower = smoother but slower response
+    // Adaptive smoothing: quick to respond while the device is turning, heavy
+    // smoothing when nearly still so a resting compass doesn't jitter.
+    const TURN_FACTOR = 0.5;     // per-event blend factor while turning
+    const REST_FACTOR = 0.08;    // per-event blend factor at rest
+    const TURN_THRESHOLD = 1.2;  // degrees moved per event that counts as "turning"
 
     function getCardinal(heading) {
       const dirs = ["N","NE","E","SE","S","SW","W","NW"];
@@ -426,15 +430,18 @@ events: 0</div>
     function handleOrientation(e) {
       eventCount++;
 
-      const a = e.alpha != null ? e.alpha.toFixed(1) : "-";
-      const b = e.beta  != null ? e.beta.toFixed(1)  : "-";
-      const g = e.gamma != null ? e.gamma.toFixed(1) : "-";
+      const a = e.alpha != null && isFinite(e.alpha) ? e.alpha.toFixed(1) : "-";
+      const b = e.beta  != null && isFinite(e.beta)  ? e.beta.toFixed(1)  : "-";
+      const g = e.gamma != null && isFinite(e.gamma) ? e.gamma.toFixed(1) : "-";
       
       debugEl.textContent = 
         `α: ${a}\nβ: ${b}\nγ: ${g}\nevents: ${eventCount}`;
 
-      if (e.alpha != null) {
-        // Add 180° to correct for device reporting north as south
+      if (e.alpha != null && isFinite(e.alpha)) {
+        // Add 180° to correct for device reporting north as south.
+        // CONTRACT: the page always treats alpha as this inverted convention;
+        // the Android bridge (www shim + native MainActivity) feeds
+        // alpha = trueHeading + 180 so the two cancel out. Keep in sync.
         let rawHeading = (e.alpha + 180) % 360;
 
         // Initialize smoothed heading on first reading
@@ -446,7 +453,9 @@ events: 0</div>
           // Normalize difference to -180 to 180 range
           while (diff > 180) diff -= 360;
           while (diff < -180) diff += 360;
-          smoothedHeading = (smoothedHeading + diff * SMOOTHING_FACTOR + 360) % 360;
+          // Adaptive: blend fast while turning, slow when nearly still
+          const factor = Math.abs(diff) > TURN_THRESHOLD ? TURN_FACTOR : REST_FACTOR;
+          smoothedHeading = (smoothedHeading + diff * factor + 360) % 360;
         }
 
         lastHeading = smoothedHeading;
